@@ -1,0 +1,22 @@
+aka netpanzer 'masterserver'
+
+listens to port 28900 for 'heartbeat' messages from
+
+netpanzer gameservers, provides a list of live games
+
+system firewall must allow connections to port 28900
+
+both udp and tcp (udp is used for a quick challenge
+
+echo request)
+
+Compiling:
+
+Libs required: libevent (the 'dev' too).
+
+In a terminal: gcc -s -O2 -Wall ./npms.c -o npms -L. -levent -levent_core -levent_pthreads -levent_extra
+
+Test it with: echo -n "\\list\\gamename\\netpanzer\\final\\" | nc  127.0.0.1 28900
+
+(should answer '\final\' even if list is empty)
+
