@@ -92,7 +92,7 @@ static const char shutdown_com[] = "shutdown!"; // max 12 chars
 
 //admin address (for shutdown command)
 
-static const char admin_addr[] = "127.0.0.1"; 
+static const char admin_addr[] = "127.0.0.1";
 
 ////////// better not touch below here //////////
 
@@ -126,19 +126,20 @@ static const char protocol_t[] = "protocol";
 
 static const char final_t[] = "final";
 
-typedef struct {	  int status; 
+typedef struct {
+    int status;
 
-  char addr[16]; 
+    char addr[16];
 
-  int port;
+    int port;
 
-  int protocol;
+    int protocol;
 
-  time_t timestamp;
+    time_t timestamp;
 
-  char echokey[13];
+    char echokey[13];
 
-}gs_list;
+} gs_list;
 
 static gs_list gs_arr[GS_MAX_NUM];
 
@@ -150,9 +151,7 @@ static int running_mode = 0;
 
 static int
 
-tcp_close(int fd)
-
-{
+tcp_close(int fd) {
 
     return close(fd);
 
@@ -164,21 +163,17 @@ tcp_close(int fd)
 
 static int
 
-udp_socket_send_to(evutil_socket_t fd, char* msg, long int truelen, struct sockaddr* dest, int fromlen)
-
-{
+udp_socket_send_to(evutil_socket_t fd, char *msg, long int truelen, struct sockaddr *dest, int fromlen) {
 
     int n = sendto(fd, msg, truelen, 0,
 
-	(struct sockaddr*)dest, fromlen);
+                   (struct sockaddr *) dest, fromlen);
 
-    
 
     return n;
 
-    
 
-} 
+}
 
 ///
 
@@ -186,33 +181,27 @@ udp_socket_send_to(evutil_socket_t fd, char* msg, long int truelen, struct socka
 
 static void
 
-writecb (struct bufferevent *bev, void *ctx)
+writecb(struct bufferevent *bev, void *ctx) {
 
-{
 
-        
+    struct evbuffer *output = bufferevent_get_output(bev);
 
-	struct evbuffer *output = bufferevent_get_output(bev);
+    if (evbuffer_get_length(output) == 0) {
 
-	if (evbuffer_get_length(output) == 0) {
+        //printf("flushed answer\n\n");
 
-		//printf("flushed answer\n\n");
-
-        int tfd = bufferevent_getfd(bev);   
+        int tfd = bufferevent_getfd(bev);
 
         if (tfd != -1) {
 
-        tcp_close(tfd);
+            tcp_close(tfd);
 
         }
 
-	bufferevent_free(bev);	
+        bufferevent_free(bev);
 
-	}
+    }
 
-		
-
-	
 
 }
 
@@ -222,9 +211,7 @@ writecb (struct bufferevent *bev, void *ctx)
 
 static void
 
-readcb(struct bufferevent *bev, void *ctx)
-
-{
+readcb(struct bufferevent *bev, void *ctx) {
 
     struct evbuffer *input;
 
@@ -236,441 +223,429 @@ readcb(struct bufferevent *bev, void *ctx)
 
     if (bufflen > 0) {
 
-       if (bufflen > 256) {
+        if (bufflen > 256) {
 
-       bufflen = 256;
+            bufflen = 256;
 
-       }
+        }
 
-    char cmsg[bufflen+1];
+        char cmsg[bufflen + 1];
 
-    evbuffer_copyout(input, cmsg, bufflen);
+        evbuffer_copyout(input, cmsg, bufflen);
 
-    cmsg[bufflen] = '\0';
+        cmsg[bufflen] = '\0';
 
-    //printf("input(%d): %s\n", bufflen-1, cmsg);
+        //printf("input(%d): %s\n", bufflen-1, cmsg);
 
-    char cl_ip[16];
+        char cl_ip[16];
 
-    struct sockaddr_in cl_addr;
+        struct sockaddr_in cl_addr;
 
-    bzero(&cl_addr, sizeof(cl_addr));
+        bzero(&cl_addr, sizeof(cl_addr));
 
-    socklen_t cl_addr_len = sizeof(cl_addr);
+        socklen_t cl_addr_len = sizeof(cl_addr);
 
-    if ( getpeername( bufferevent_getfd(bev), (struct sockaddr *)&cl_addr, &cl_addr_len ) == 0 ) {
+        if (getpeername(bufferevent_getfd(bev), (struct sockaddr *) &cl_addr, &cl_addr_len) == 0) {
 
-    inet_ntop(AF_INET, &cl_addr.sin_addr, cl_ip, sizeof(cl_ip));
+            inet_ntop(AF_INET, &cl_addr.sin_addr, cl_ip, sizeof(cl_ip));
 
-    //unsigned int cl_port = ntohs(cl_addr.sin_port);
+            //unsigned int cl_port = ntohs(cl_addr.sin_port);
 
-    //printf("ip address:port %s:%d\n", cl_ip, cl_port);
+            //printf("ip address:port %s:%d\n", cl_ip, cl_port);
 
-    }
+        }
 
-   
 
-    
 
-    // processing input
 
-    char* token = strtok(cmsg, "\\");
 
-    unsigned int port_v = 0;
+        // processing input
 
-    unsigned int protocol_v = 0;
+        char *token = strtok(cmsg, "\\");
 
-    int tokenc = 0;
+        unsigned int port_v = 0;
 
-    int hcl = 0;
+        unsigned int protocol_v = 0;
 
-    int result = 0; 
+        int tokenc = 0;
 
-    if (token == NULL) {
+        int hcl = 0;
 
-    //printf("Malformed string\n");
+        int result = 0;
 
-    goto out;
+        if (token == NULL) {
 
-    }
+            //printf("Malformed string\n");
 
-    while (token) {
+            goto out;
 
-    tokenc++;
+        }
 
-    if (tokenc == 1) {
+        while (token) {
 
-       if ((strcmp(token, heartbeat_t)) == 0) { //heartbeat 
+            tokenc++;
 
-       hcl++;    
+            if (tokenc == 1) {
 
-       }
+                if ((strcmp(token, heartbeat_t)) == 0) { //heartbeat
 
-       if ((strcmp(token, list_t)) == 0) { //list
+                    hcl++;
 
-       int intokenc = 1;
+                }
 
-       int validity = 1;
+                if ((strcmp(token, list_t)) == 0) { //list
 
- 
+                    int intokenc = 1;
 
-       while (token) {
+                    int validity = 1;
 
-       
 
-       if (intokenc == 2 && (strcmp(token, gamename_t)) == 0) {
+                    while (token) {
 
-       validity++;
 
-       } 
+                        if (intokenc == 2 && (strcmp(token, gamename_t)) == 0) {
 
-       if (intokenc == 3 && (strcmp(token, netpanzer_t)) == 0) {
+                            validity++;
 
-       validity++;
+                        }
 
-       }
+                        if (intokenc == 3 && (strcmp(token, netpanzer_t)) == 0) {
 
-       if (intokenc == 4 && (strcmp(token, final_t)) == 0) {
+                            validity++;
 
-       validity++;
+                        }
 
-       }
+                        if (intokenc == 4 && (strcmp(token, final_t)) == 0) {
 
- 
+                            validity++;
 
-       token = strtok(NULL, "\\");
+                        }
 
-       intokenc++;
 
-       } // while
+                        token = strtok(NULL, "\\");
 
-       if (validity == 4) {
+                        intokenc++;
 
-       result = 2;
+                    } // while
 
-       break; 
+                    if (validity == 4) {
 
-       }
+                        result = 2;
 
-       else
+                        break;
 
-       {
+                    } else {
 
-       result = 0;
+                        result = 0;
 
-       break; 
+                        break;
 
-       }
+                    }
 
-       }
+                }
 
-    }
+            }
 
-    if (tokenc == 2) {
+            if (tokenc == 2) {
 
-       if ((strcmp(token, gamename_t)) == 0) {
+                if ((strcmp(token, gamename_t)) == 0) {
 
-       hcl++;
+                    hcl++;
 
-       } 
+                }
 
-    }
+            }
 
-    if (tokenc == 3) {
+            if (tokenc == 3) {
 
-       if ((strcmp(token, netpanzer_t)) == 0) {
+                if ((strcmp(token, netpanzer_t)) == 0) {
 
-       hcl++; 
+                    hcl++;
 
-       }
+                }
 
-    }
+            }
 
-    if (tokenc == 4) {
+            if (tokenc == 4) {
 
-       if ((strcmp(token, port_t)) == 0) {
+                if ((strcmp(token, port_t)) == 0) {
 
-       hcl++; 
+                    hcl++;
 
-       }
+                }
 
-    }
+            }
 
-    if (tokenc == 5 && hcl == 4) {
+            if (tokenc == 5 && hcl == 4) {
 
-       port_v = atoi(token);
+                port_v = atoi(token);
 
-       if (port_v > 0) {
+                if (port_v > 0) {
 
-       if (port_v > 1024 && port_v < 65535) {
+                    if (port_v > 1024 && port_v < 65535) {
 
-       hcl++;
+                        hcl++;
 
-       }
+                    }
 
-       }
+                }
 
-    }
+            }
 
-    if (tokenc == 6) {
+            if (tokenc == 6) {
 
-       if ((strcmp(token, protocol_t)) == 0) {
+                if ((strcmp(token, protocol_t)) == 0) {
 
-       hcl++; 
+                    hcl++;
 
-       }
+                }
 
-    }
+            }
 
-    if (tokenc == 7 && hcl == 6) {
+            if (tokenc == 7 && hcl == 6) {
 
-       protocol_v = atoi(token);
+                protocol_v = atoi(token);
 
-       if (protocol_v > 0) {
+                if (protocol_v > 0) {
 
-       hcl++; 
+                    hcl++;
 
-       }
+                }
 
-    }
+            }
 
-    if (tokenc == 8) {
+            if (tokenc == 8) {
 
-       if ((strcmp(token, final_t)) == 0) {
+                if ((strcmp(token, final_t)) == 0) {
 
-       hcl++;
+                    hcl++;
 
-       if (hcl == 8) {
+                    if (hcl == 8) {
 
-       // heartbeat string is ok
+                        // heartbeat string is ok
 
-       result = 1;
+                        result = 1;
 
-       break;
+                        break;
 
-       }
+                    }
 
-       }
+                }
 
-    } 
+            }
 
-    token = strtok(NULL, "\\");
+            token = strtok(NULL, "\\");
 
-    } // while
+        } // while
 
-    if (result == 0) {
+        if (result == 0) {
 
-       goto out;
+            goto out;
 
-    } else if
+        } else if
 
-       (result == 1) {
+                (result == 1) {
 
-       // send "\final\" back and add gs to list (optionally may do more checks)
+            // send "\final\" back and add gs to list (optionally may do more checks)
 
-       int first_entry = 0;
+            int first_entry = 0;
 
-       bool free_entries = false;
+            bool free_entries = false;
 
-       bool isinit = false;
+            bool isinit = false;
 
-       int i;
+            int i;
 
-       for (i = 0; i < GS_MAX_NUM; i++) {
+            for (i = 0; i < GS_MAX_NUM; i++) {
 
-           if (gs_arr[i].status == 0 && free_entries == false) {
+                if (gs_arr[i].status == 0 && free_entries == false) {
 
-           first_entry = i;
+                    first_entry = i;
 
-           free_entries = true;
+                    free_entries = true;
 
-           }
+                }
 
-           if (gs_arr[i].status > 0) {
+                if (gs_arr[i].status > 0) {
 
-           if ((strcmp(cl_ip, gs_arr[i].addr)) == 0 && port_v == gs_arr[i].port) {           
+                    if ((strcmp(cl_ip, gs_arr[i].addr)) == 0 && port_v == gs_arr[i].port) {
 
-           isinit = true;
+                        isinit = true;
 
-           gs_arr[i].timestamp = time(NULL);
+                        gs_arr[i].timestamp = time(NULL);
 
-           }
+                    } else {
 
-           else
+                        time_t now = time(NULL);
 
-           {
+                        if (now - gs_arr[i].timestamp > 60 * 5) {
 
-           time_t now = time(NULL);
+                            gs_arr[i].status = 0; // deleting gameserver if more than 5 mins old
 
-           if (now - gs_arr[i].timestamp > 60*5) {
+                        }
 
-           gs_arr[i].status = 0; // deleting gameserver if more than 5 mins old
+                    }
 
-           }
+                    //printf("[status] %d  [ip] %s  [port] %d  [time] %ld\n\n",
 
-           }
+                    //gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port, gs_arr[i].timestamp);
 
-           //printf("[status] %d  [ip] %s  [port] %d  [time] %ld\n\n",
+                } // status > 0
 
-           //gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port, gs_arr[i].timestamp);
+            }
 
-           } // status > 0
+            if (isinit == false && free_entries == true) {
 
-       }
+                // echo udp challenge test
 
-       if (isinit == false && free_entries == true) {
+                struct sockaddr_in si_me;
 
-       // echo udp challenge test
+                int slen = sizeof(si_me);
 
-       struct sockaddr_in si_me;
+                memset((char *) &si_me, 0, sizeof(si_me));
 
-       int slen = sizeof(si_me);
+                si_me.sin_family = AF_INET;
 
-       memset((char *) &si_me, 0, sizeof(si_me));
+                si_me.sin_port = htons(port_v);
 
-       si_me.sin_family = AF_INET;
+                si_me.sin_addr.s_addr = inet_addr(cl_ip);
 
-       si_me.sin_port = htons(port_v);
+                char echo_query[13] = {0};
 
-       si_me.sin_addr.s_addr = inet_addr(cl_ip);
+                strcat(echo_query, ECHO_QUERY);
 
-       char echo_query[13] = {0};
+                unsigned int echo_key = (rand() % 8999) + 1000;
 
-       strcat(echo_query, ECHO_QUERY);
+                char echo_str[5] = {0};
 
-       unsigned int echo_key = (rand() % 8999) + 1000;
+                sprintf(echo_str, "%d", echo_key);
 
-       char echo_str[5] = {0};
+                strcat(echo_query, echo_str);
 
-       sprintf(echo_str, "%d", echo_key);
+                int n = udp_socket_send_to(ufd, echo_query, strlen(echo_query), (struct sockaddr *) &si_me, slen);
 
-       strcat(echo_query, echo_str);
+                if (n == -1) {
 
-       int n = udp_socket_send_to(ufd, echo_query, strlen(echo_query), (struct sockaddr*)&si_me, slen);
+                    syslog(LOG_ERR, "sendto failed: %s", strerror(errno));
 
-       if (n == -1) {
+                    return;
 
-          syslog(LOG_ERR, "sendto failed: %s", strerror(errno));
+                }
 
-	  return;
+                gs_arr[first_entry].status = 1;
 
-       }
+                strcpy(gs_arr[first_entry].addr, cl_ip);
 
-           gs_arr[first_entry].status = 1;
+                gs_arr[first_entry].port = port_v;
 
-           strcpy( gs_arr[first_entry].addr, cl_ip );
+                gs_arr[first_entry].protocol = protocol_v;
 
-           gs_arr[first_entry].port = port_v;
+                gs_arr[first_entry].timestamp = time(NULL);
 
-           gs_arr[first_entry].protocol = protocol_v;           
+                strcpy(gs_arr[first_entry].echokey, echo_str);
 
-           gs_arr[first_entry].timestamp = time(NULL);
+            }
 
-           strcpy( gs_arr[first_entry].echokey, echo_str );
+            bufferevent_write(bev, MS_LIST_QUERY_ANSWER, strlen(MS_LIST_QUERY_ANSWER));
 
-       }
+            bufferevent_enable(bev, EV_WRITE);
 
-       bufferevent_write(bev, MS_LIST_QUERY_ANSWER, strlen(MS_LIST_QUERY_ANSWER));
+            return;
 
-       bufferevent_enable(bev, EV_WRITE);
+        } else {
 
-       return;
+            // send gs list to client
 
-    } else {
+            char sendbuff[SEND_BUFFER] = {0};
 
-       // send gs list to client
+            int buffind = 0;
 
-       char sendbuff[SEND_BUFFER] = {0};
+            const char ip_token[] = "\\ip\\";
 
-       int buffind = 0;
+            const char port_token[] = "\\port\\";
 
-       const char ip_token[] = "\\ip\\";
+            const char final_token[] = "\\final\\";
 
-       const char port_token[] = "\\port\\";
+            int i;
 
-       const char final_token[] = "\\final\\";
+            for (i = 0; i < GS_MAX_NUM; i++) {
 
-       int i;
+                // deletion here too
 
-       for (i = 0; i < GS_MAX_NUM; i++) {
+                if (gs_arr[i].status > 0) {
 
-       // deletion here too
+                    time_t now = time(NULL);
 
-       if (gs_arr[i].status > 0) {
+                    if (now - gs_arr[i].timestamp > 60 * 5) {
 
-           time_t now = time(NULL);
+                        gs_arr[i].status = 0; // deleting gameserver if more than 5 mins old
 
-           if (now - gs_arr[i].timestamp > 60*5) {
+                    }
 
-           gs_arr[i].status = 0; // deleting gameserver if more than 5 mins old
+                }
 
-           }
+                //
 
-       }
+                if (gs_arr[i].status > 1) { // only those who passed udp echo challenge test
 
-       //
+                    strcat(sendbuff, ip_token);
 
-       if (gs_arr[i].status > 1) { // only those who passed udp echo challenge test
+                    buffind = buffind + 6;
 
-       strcat(sendbuff, ip_token);
+                    int addrlen = strlen(gs_arr[i].addr);
 
-       buffind = buffind + 6;
+                    strcat(sendbuff, gs_arr[i].addr);
 
-       int addrlen = strlen(gs_arr[i].addr);
+                    buffind = buffind + addrlen;
 
-       strcat(sendbuff, gs_arr[i].addr);
+                    strcat(sendbuff, port_token);
 
-       buffind = buffind + addrlen;
+                    buffind = buffind + 8;
 
-       strcat(sendbuff, port_token);
+                    char port_str[6] = {0};
 
-       buffind = buffind + 8;
+                    sprintf(port_str, "%d", gs_arr[i].port);
 
-       char port_str[6] = {0};
+                    int portlen = strlen(port_str);
 
-       sprintf(port_str, "%d", gs_arr[i].port);
+                    strcat(sendbuff, port_str);
 
-       int portlen = strlen(port_str);
+                    buffind = buffind + portlen;
 
-       strcat(sendbuff, port_str);
+                    //printf("status: %d  ip: %s  port: %d  time: %ld\n\n",
 
-       buffind = buffind + portlen;
+                    //       gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port, gs_arr[i].timestamp);
 
-       //printf("status: %d  ip: %s  port: %d  time: %ld\n\n",
+                }
 
-       //       gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port, gs_arr[i].timestamp);
+            } // for
 
-       }
+            strcat(sendbuff, final_token);
 
-       } // for
+            buffind = buffind + 9;
 
-       strcat(sendbuff, final_token);
+            char send_str[buffind + 1];
 
-       buffind = buffind + 9;
+            send_str[buffind] = '\0';
 
-       char send_str[buffind+1];
+            strcpy(send_str, sendbuff);
 
-       send_str[buffind] = '\0';
 
-       strcpy (send_str, sendbuff);
+            bufferevent_write(bev, send_str, strlen(send_str));
 
-         
+            bufferevent_enable(bev, EV_WRITE);
 
-       bufferevent_write(bev, send_str, strlen(send_str));
+            return;
 
-       bufferevent_enable(bev, EV_WRITE);
+        }  // else
 
-       return;
 
-    }  // else
-
-    
 
     } // bufflen > 0
 
-    
 
-out:
+
+    out:
 
     bufferevent_free(bev);
 
@@ -682,57 +657,33 @@ out:
 
 static void
 
-errorcb(struct bufferevent *bev, short error, void *ctx)
+errorcb(struct bufferevent *bev, short error, void *ctx) {
 
-{
+    if (error & BEV_EVENT_CONNECTED) {
 
-    if (error & BEV_EVENT_CONNECTED)
+        // go on
 
-    { 
+    } else if (error & BEV_EVENT_ERROR) {
 
-    // go on
+        //we decide to just clean up on error
 
-    }
+        bufferevent_free(bev);
 
-    else if (error & BEV_EVENT_ERROR)
+    } else if (error & BEV_EVENT_TIMEOUT) {
 
-    {
+        bufferevent_free(bev);
 
-    //we decide to just clean up on error 
+    } else if (error & BEV_EVENT_READING) {
 
-    bufferevent_free(bev);
+        bufferevent_free(bev);
 
-    }
+    } else if (error & BEV_EVENT_WRITING) {
 
-    else if (error & BEV_EVENT_TIMEOUT)
+        bufferevent_free(bev);
 
-    {
+    } else if (error & BEV_EVENT_EOF) {
 
-    bufferevent_free(bev);
-
-    }
-
-    else if (error & BEV_EVENT_READING)
-
-    {
-
-    bufferevent_free(bev);
-
-    }
-
-    else if (error & BEV_EVENT_WRITING)
-
-    {
-
-    bufferevent_free(bev);
-
-    }
-
-    else if (error & BEV_EVENT_EOF)
-
-    {
-
-    bufferevent_free(bev);
+        bufferevent_free(bev);
 
     }
 
@@ -744,9 +695,7 @@ errorcb(struct bufferevent *bev, short error, void *ctx)
 
 static void
 
-do_accept(evutil_socket_t listener, short event, void *arg)
-
-{
+do_accept(evutil_socket_t listener, short event, void *arg) {
 
     struct event_base *base = arg;
 
@@ -754,7 +703,7 @@ do_accept(evutil_socket_t listener, short event, void *arg)
 
     socklen_t slen = sizeof(ss);
 
-    int fd = accept(listener, (struct sockaddr*)&ss, &slen);
+    int fd = accept(listener, (struct sockaddr *) &ss, &slen);
 
     if (fd < 0) {
 
@@ -770,31 +719,28 @@ do_accept(evutil_socket_t listener, short event, void *arg)
 
         evutil_make_socket_nonblocking(fd);
 
-        
 
         char cl_ip[16] = {0};
 
         if (ss.ss_family == AF_INET) {
 
-        struct sockaddr_in *s = (struct sockaddr_in *)&ss;
+            struct sockaddr_in *s = (struct sockaddr_in *) &ss;
 
-        //int cl_port = ntohs(s->sin_port);
+            //int cl_port = ntohs(s->sin_port);
 
-        inet_ntop(AF_INET, &s->sin_addr, cl_ip, sizeof cl_ip);
+            inet_ntop(AF_INET, &s->sin_addr, cl_ip, sizeof cl_ip);
 
         }
 
         bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 
-        
 
         bufferevent_setcb(bev, readcb, writecb, errorcb, base);
 
-        bufferevent_enable(bev, EV_READ|EV_WRITE);
+        bufferevent_enable(bev, EV_READ | EV_WRITE);
 
         bufferevent_disable(bev, EV_WRITE);
 
-        
 
     }
 
@@ -806,17 +752,14 @@ do_accept(evutil_socket_t listener, short event, void *arg)
 
 static int
 
-udp_socket_open()
-
-{
+udp_socket_open() {
 
     struct addrinfo hints, *ai_list, *ai;
 
     int n, fd = 0, on = 1;
 
-    
 
-    char * port = "28900";
+    char *port = "28900";
 
     memset(&hints, 0, sizeof(hints));
 
@@ -832,7 +775,7 @@ udp_socket_open()
 
         fprintf(stderr, "%s: getaddrinfo failed: %s\n",
 
-               progname, gai_strerror(n));
+                progname, gai_strerror(n));
 
         return -1;
 
@@ -880,9 +823,7 @@ udp_socket_open()
 
 static int
 
-udp_socket_close(int fd)
-
-{
+udp_socket_close(int fd) {
 
     return close(fd);
 
@@ -894,9 +835,7 @@ udp_socket_close(int fd)
 
 static void
 
-udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg)
-
-{
+udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
 
     char message[UDP_BUFFER] = {0};
 
@@ -908,15 +847,15 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg)
 
     unsigned long truelen = recv(evfd, message, sizeof(message), MSG_PEEK | MSG_TRUNC); //solution with PEEK/TRUNC
 
-    if (truelen > UDP_BUFFER-1) {
+    if (truelen > UDP_BUFFER - 1) {
 
-    truelen = UDP_BUFFER-1;
+        truelen = UDP_BUFFER - 1;
 
-    return; // we decide to just drop too big packets
+        return; // we decide to just drop too big packets
 
-    } 
+    }
 
-    n = recvfrom(evfd, message, sizeof(message)-1, 0,
+    n = recvfrom(evfd, message, sizeof(message) - 1, 0,
 
                  (struct sockaddr *) &from, &fromlen);
 
@@ -946,47 +885,44 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg)
 
         // check for shutdown command (from 127.0.0.1)                
 
-        if ( (strcmp(message, shutdown_com)) == 0 && (strcmp(hoststr, admin_addr)) == 0 ) {
+        if ((strcmp(message, shutdown_com)) == 0 && (strcmp(hoststr, admin_addr)) == 0) {
 
-           event_base_loopbreak(evarg);
+            event_base_loopbreak(evarg);
 
-        }   
+        }
 
- 
 
-        int i; 
+        int i;
 
         for (i = 0; i < GS_MAX_NUM; i++) {
 
             if (gs_arr[i].status == 1) {
 
-               unsigned int port_num = atoi(portstr);
+                unsigned int port_num = atoi(portstr);
 
-               time_t justnow = time(NULL);
+                time_t justnow = time(NULL);
 
-               if ( (strcmp(hoststr, gs_arr[i].addr)) == 0 &&
+                if ((strcmp(hoststr, gs_arr[i].addr)) == 0 &&
 
                     port_num == gs_arr[i].port &&
 
                     (strcmp(message, gs_arr[i].echokey)) == 0 &&
 
-                    (justnow - gs_arr[i].timestamp) < 2 ) {
+                    (justnow - gs_arr[i].timestamp) < 2) {
 
-                  gs_arr[i].status = 2; // echo challenge test success!          
+                    gs_arr[i].status = 2; // echo challenge test success!
 
-               }
+                }
 
-  
 
             }
 
         }
 
-        
 
     } //else end
 
-    
+
 
 }
 
@@ -1008,9 +944,7 @@ static void quick_shutdown(evutil_socket_t fd, short what, void *arg) {
 
 int
 
-main(int argc, char *argv[])
-
-{
+main(int argc, char *argv[]) {
 
     if (argc > 2) {
 
@@ -1022,87 +956,71 @@ main(int argc, char *argv[])
 
     if (argc == 2) {
 
-    const char debug_arg[] = "--debug";
+        const char debug_arg[] = "--debug";
 
-    const char silent_arg[] = "--silent";
+        const char silent_arg[] = "--silent";
 
-    const char version_arg[] = "--version";
+        const char version_arg[] = "--version";
 
-    const char help_arg[] = "--help";
+        const char help_arg[] = "--help";
 
-    if ( (strcmp(argv[1], debug_arg)) == 0 ) {
+        if ((strcmp(argv[1], debug_arg)) == 0) {
 
-        running_mode = 0;  //debug mode 
+            running_mode = 0;  //debug mode
 
-        printf(" program started\n");
+            printf(" program started\n");
 
-    }
+        } else if ((strcmp(argv[1], silent_arg)) == 0) {
 
-    else if ( (strcmp(argv[1], silent_arg)) == 0 )
+            running_mode = 1;  //silent mode
 
-    {
+            printf(" program started\n");
 
-        running_mode = 1;  //silent mode 
+        } else if ((strcmp(argv[1], version_arg)) == 0) {
 
-        printf(" program started\n");   
+            printf(" npms version 1.0\n");
 
-    }
+            exit(EXIT_SUCCESS);
 
-    else if ( (strcmp(argv[1], version_arg)) == 0 )
+        } else if ((strcmp(argv[1], help_arg)) == 0) {
 
-    {
+            printf(" Listens to port 28900 for 'heartbeat' messages\n"
 
-        printf(" npms version 1.0\n");
+                   " from netpanzer gameservers.\n"
 
-        exit(EXIT_SUCCESS);   
+                   " Provides a list of live games at the same port.\n\n"
 
-    }
+                   " Usage:\n"
 
-    else if ( (strcmp(argv[1], help_arg)) == 0 )
+                   " [--debug]\n"
 
-    {
+                   "    Lots of messages and logs.\n"
 
-        printf(" Listens to port 28900 for 'heartbeat' messages\n"
+                   " [--silent]\n"
 
-               " from netpanzer gameservers.\n"
+                   "    Just start and shutdown messages.\n"
 
-               " Provides a list of live games at the same port.\n\n"
+                   " [--version]\n"
 
-               " Usage:\n"
+                   "    Prints version number and exits.\n"
 
-               " [--debug]\n"
+                   " [--help]\n"
 
-               "    Lots of messages and logs.\n"
+                   "    This! Check README for more information.\n\n"
 
-               " [--silent]\n"
+                   " (if no arguments starts in [--debug] mode)\n\n"
 
-               "    Just start and shutdown messages.\n"
+            );
 
-               " [--version]\n"
+            exit(EXIT_SUCCESS);
 
-               "    Prints version number and exits.\n"
+        } else {
 
-               " [--help]\n"
+            fprintf(stderr, " usage: %s [--options] (try 'npsb --help')\n", progname);
 
-               "    This! Check README for more information.\n\n"
+            exit(EXIT_FAILURE);
 
-               " (if no arguments starts in [--debug] mode)\n\n"           
-
-               );
-
-        exit(EXIT_SUCCESS); 
-
-    }
-
-    else
-
-    {
-
-        fprintf(stderr, " usage: %s [--options] (try 'npsb --help')\n", progname);
-
-        exit(EXIT_FAILURE);
-
-    }
+        }
 
     } // argc = 2
 
@@ -1130,7 +1048,7 @@ main(int argc, char *argv[])
 
     int i;
 
-    for (i = 0; i < GS_MAX_NUM; i++ ) {
+    for (i = 0; i < GS_MAX_NUM; i++) {
 
         gs_arr[i].status = 0;
 
@@ -1138,13 +1056,11 @@ main(int argc, char *argv[])
 
     if (running_mode == 0) {
 
-    syslog(LOG_NOTICE, "program started");
+        syslog(LOG_NOTICE, "program started");
 
-    } else if (running_mode == 1)
+    } else if (running_mode == 1) {
 
-    {
-
-    syslog(LOG_NOTICE, "program started as daemon");
+        syslog(LOG_NOTICE, "program started as daemon");
 
     }
 
@@ -1160,11 +1076,11 @@ main(int argc, char *argv[])
 
     term = evsignal_new(base, SIGTERM, quick_shutdown, base);
 
-    evsignal_add(term, NULL); 
+    evsignal_add(term, NULL);
 
     term2 = evsignal_new(base, SIGINT, quick_shutdown, base);
 
-    evsignal_add(term2, NULL); 
+    evsignal_add(term2, NULL);
 
     term3 = evsignal_new(base, SIGHUP, quick_shutdown, base);
 
@@ -1172,7 +1088,7 @@ main(int argc, char *argv[])
 
     term4 = evsignal_new(base, SIGQUIT, quick_shutdown, base);
 
-    evsignal_add(term4, NULL); 
+    evsignal_add(term4, NULL);
 
     sin.sin_family = AF_INET;
 
@@ -1184,7 +1100,7 @@ main(int argc, char *argv[])
 
     evutil_make_socket_nonblocking(listener);
 
-    if (bind(listener, (struct sockaddr*)&sin, sizeof(sin)) < 0) {
+    if (bind(listener, (struct sockaddr *) &sin, sizeof(sin)) < 0) {
 
         perror("bind");
 
@@ -1192,7 +1108,7 @@ main(int argc, char *argv[])
 
     }
 
-    if (listen(listener, 16)<0) {
+    if (listen(listener, 16) < 0) {
 
         perror("listen");
 
@@ -1200,7 +1116,7 @@ main(int argc, char *argv[])
 
     }
 
-    listener_event = event_new(base, listener, EV_READ|EV_PERSIST, do_accept, (void*)base);
+    listener_event = event_new(base, listener, EV_READ | EV_PERSIST, do_accept, (void *) base);
 
     event_add(listener_event, NULL);
 
@@ -1210,15 +1126,11 @@ main(int argc, char *argv[])
 
     if (ufd > -1) {
 
-        uev = event_new(base, ufd, EV_READ|EV_PERSIST, udp_socket_main, base);
+        uev = event_new(base, ufd, EV_READ | EV_PERSIST, udp_socket_main, base);
 
-	event_add(uev, NULL);
+        event_add(uev, NULL);
 
-    }
-
-    else
-
-    {
+    } else {
 
         return EXIT_FAILURE;
 
@@ -1226,21 +1138,19 @@ main(int argc, char *argv[])
 
     //loop init and exiting stuff
 
-    if (event_base_loop(base, 0) == -1) {        
+    if (event_base_loop(base, 0) == -1) {
 
         goto end;
 
-    }    
+    }
 
-    
 
-end:
+    end:
 
     syslog(LOG_NOTICE, "shutting down");
 
     printf(" shutting down...\n");
 
- 
 
     udp_socket_close(ufd);
 
@@ -1250,11 +1160,11 @@ end:
 
     event_free(term);
 
-    event_free(term2); 
+    event_free(term2);
 
     event_free(term3);
 
-    event_free(term4);    
+    event_free(term4);
 
     event_base_free(base);
 
