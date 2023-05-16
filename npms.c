@@ -282,8 +282,12 @@ readcb(struct bufferevent *bev, void *ctx) {
         }
 
         while (token) {
-
             tokenc++;
+
+            if (tokenc > 1000000) {
+                printf("Passed 1000000 iterations parsing input, invalid? message=[%s]\n", cmsg);
+                break;
+            }
 
             if (tokenc == 1) {
 
