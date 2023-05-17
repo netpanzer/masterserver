@@ -896,37 +896,36 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
         }
 
 
-        int i;
-
+        int i; 
         for (i = 0; i < GS_MAX_NUM; i++) {
-
             if (gs_arr[i].status == 1) {
-
-                unsigned int port_num = atoi(portstr);
-
-                time_t justnow = time(NULL);
-
-                if ((strcmp(hoststr, gs_arr[i].addr)) == 0 &&
-
-                    port_num == gs_arr[i].port &&
-
-                    (strcmp(message, gs_arr[i].echokey)) == 0 &&
-
-                    (justnow - gs_arr[i].timestamp) < 2) {
-
+               unsigned int port_num = atoi(portstr);
+               time_t justnow = time(NULL);
+               
+               if ( (justnow - gs_arr[i].timestamp) > 2) {
+               gs_arr[i].status = 0; // delete!
+               }
+               
+               if ( (strcmp(hoststr, gs_arr[i].addr)) == 0 &&
+                    port_num == gs_arr[i].port ) {
+                    
+                    if ( (strcmp(message, gs_arr[i].echokey)) == 0 ) {
                     gs_arr[i].status = 2; // echo challenge test success!
-
-                }
-
-
+                    } else {
+                    gs_arr[i].status = 0; // echo challenge test fail!
+                    }
+               } 
+   
             }
 
         }
 
-
     } //else end
 
-
+    //re-activating the event here 
+    struct event *uev;
+    uev = event_new(evarg, evfd, EV_READ, udp_socket_main, evarg);
+	   event_add(uev, NULL);
 
 }
 
@@ -1130,7 +1129,7 @@ main(int argc, char *argv[]) {
 
     if (ufd > -1) {
 
-        uev = event_new(base, ufd, EV_READ | EV_PERSIST, udp_socket_main, base);
+        uev = event_new(base, ufd, EV_READ, udp_socket_main, base);
 
         event_add(uev, NULL);
 
