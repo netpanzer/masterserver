@@ -145,6 +145,8 @@ static gs_list gs_arr[GS_MAX_NUM];
 
 static int running_mode = 0;
 
+struct event *uev;
+
 /////////////////////////////////////////////////
 
 ///
@@ -283,11 +285,6 @@ readcb(struct bufferevent *bev, void *ctx) {
 
         while (token) {
             tokenc++;
-
-            if (tokenc > 1000000) {
-                printf("Passed 1000000 iterations parsing input, invalid? message=[%s]\n", cmsg);
-                break;
-            }
 
             if (tokenc == 1) {
 
@@ -849,6 +846,7 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
 
     int n;
 
+/*
     unsigned long truelen = recv(evfd, message, sizeof(message), MSG_PEEK | MSG_TRUNC); //solution with PEEK/TRUNC
 
     if (truelen > UDP_BUFFER - 1) {
@@ -858,6 +856,7 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
         return; // we decide to just drop too big packets
 
     }
+*/
 
     n = recvfrom(evfd, message, sizeof(message) - 1, 0,
 
@@ -867,7 +866,7 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
 
         syslog(LOG_ERR, "recvfrom failed: %s", strerror(errno));
 
-        return;
+        goto endf;
 
     }
 
@@ -922,10 +921,13 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
 
     } //else end
 
-    //re-activating the event here 
-    struct event *uev;
-    uev = event_new(evarg, evfd, EV_READ, udp_socket_main, evarg);
-	   event_add(uev, NULL);
+    
+    //return - reactivating the event here 
+
+    endf:
+    //struct event *uev;
+    //uev = event_new(evarg, evfd, EV_READ, udp_socket_main, evarg);
+    event_add(uev, NULL);
 
 }
 
@@ -989,9 +991,11 @@ main(int argc, char *argv[]) {
 
             printf(" Listens to port 28900 for 'heartbeat' messages\n"
 
-                   " from netpanzer gameservers.\n"
+                   " from NetPanzer gameservers.\n"
 
-                   " Provides a list of live games at the same port.\n\n"
+                   " Provides a list of live games at the same port.\n"
+                   
+                   " Works with NetPanzer version 0.8.7 and higher.\n\n"
 
                    " Usage:\n"
 
@@ -1045,7 +1049,7 @@ main(int argc, char *argv[]) {
 
     struct event_base *base;
 
-    struct event *listener_event, *uev, *term, *term2, *term3, *term4;
+    struct event *listener_event, *term, *term2, *term3, *term4;
 
     //init gs_arr
 
@@ -1131,8 +1135,8 @@ main(int argc, char *argv[]) {
 
         uev = event_new(base, ufd, EV_READ, udp_socket_main, base);
 
-        event_add(uev, NULL);
-
+        event_add(uev, NULL);       
+        
     } else {
 
         return EXIT_FAILURE;
