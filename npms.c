@@ -205,7 +205,7 @@ readcb(struct bufferevent *bev, void *ctx) {
 
         cmsg[bufflen] = '\0';
 
-        // printf("input(%d): %s\n", bufflen-1, cmsg);
+        printf("input(%d): %s\n", bufflen - 1, cmsg);
 
         char cl_ip[16];
 
@@ -219,9 +219,8 @@ readcb(struct bufferevent *bev, void *ctx) {
                         &cl_addr_len) == 0) {
             inet_ntop(AF_INET, &cl_addr.sin_addr, cl_ip, sizeof(cl_ip));
 
-            // unsigned int cl_port = ntohs(cl_addr.sin_port);
-
-            // printf("ip address:port %s:%d\n", cl_ip, cl_port);
+            unsigned int cl_port = ntohs(cl_addr.sin_port);
+            printf("ip address:port %s:%d\n", cl_ip, cl_port);
         }
 
         // processing input
@@ -239,8 +238,7 @@ readcb(struct bufferevent *bev, void *ctx) {
         int result = 0;
 
         if (token == NULL) {
-            // printf("Malformed string\n");
-
+            printf("Malformed string\n");
             goto out;
         }
 
@@ -249,14 +247,11 @@ readcb(struct bufferevent *bev, void *ctx) {
 
             if (tokenc == 1) {
                 if ((strcmp(token, heartbeat_t)) == 0) {  // heartbeat
-
                     hcl++;
                 }
 
                 if ((strcmp(token, list_t)) == 0) {  // list
-
                     int intokenc = 1;
-
                     int validity = 1;
 
                     while (token) {
@@ -352,19 +347,15 @@ readcb(struct bufferevent *bev, void *ctx) {
         }  // while
 
         if (result == 0) {
+            printf("Validity = 0, ending connection. \n");
             goto out;
-
-        } else if
-
-                (result == 1) {
+        } else if (result == 1) {
+            printf("Sending final message, adding gs to list. \n");
             // send "\final\" back and add gs to list (optionally may do more checks)
 
             int first_entry = 0;
-
             bool free_entries = false;
-
             bool isinit = false;
-
             int i;
 
             for (i = 0; i < GS_MAX_NUM; i++) {
@@ -385,46 +376,35 @@ readcb(struct bufferevent *bev, void *ctx) {
                         time_t now = time(NULL);
 
                         if (now - gs_arr[i].timestamp > 60 * 5) {
+                            printf("Deleting game server %s - more than 5 minutes old.\n", gs_arr[i].addr);
                             gs_arr[i].status =
                                     0;  // deleting gameserver if more than 5 mins old
                         }
                     }
 
-                    // printf("[status] %d  [ip] %s  [port] %d  [time] %ld\n\n",
-
-                    // gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port,
-                    // gs_arr[i].timestamp);
+                    printf("[status] %d  [ip] %s  [port] %d  [time] %ld\n\n",
+                           gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port,
+                           gs_arr[i].timestamp);
 
                 }  // status > 0
             }
 
             if (isinit == false && free_entries == true) {
+                printf("Sending UDP echo challenge.\n");
                 // echo udp challenge test
 
                 struct sockaddr_in si_me;
-
                 int slen = sizeof(si_me);
-
                 memset((char *) &si_me, 0, sizeof(si_me));
-
                 si_me.sin_family = AF_INET;
-
                 si_me.sin_port = htons(port_v);
-
                 si_me.sin_addr.s_addr = inet_addr(cl_ip);
-
                 char echo_query[13] = {0};
-
                 strcat(echo_query, ECHO_QUERY);
-
                 unsigned int echo_key = (rand() % 8999) + 1000;
-
                 char echo_str[5] = {0};
-
                 sprintf(echo_str, "%d", echo_key);
-
                 strcat(echo_query, echo_str);
-
                 int n = udp_socket_send_to(ufd, echo_query, strlen(echo_query),
                                            (struct sockaddr *) &si_me, slen);
 
@@ -435,15 +415,10 @@ readcb(struct bufferevent *bev, void *ctx) {
                 }
 
                 gs_arr[first_entry].status = 1;
-
                 strcpy(gs_arr[first_entry].addr, cl_ip);
-
                 gs_arr[first_entry].port = port_v;
-
                 gs_arr[first_entry].protocol = protocol_v;
-
                 gs_arr[first_entry].timestamp = time(NULL);
-
                 strcpy(gs_arr[first_entry].echokey, echo_str);
             }
 
@@ -476,44 +451,28 @@ readcb(struct bufferevent *bev, void *ctx) {
                     time_t now = time(NULL);
 
                     if (now - gs_arr[i].timestamp > 60 * 5) {
-                        gs_arr[i].status =
-                                0;  // deleting gameserver if more than 5 mins old
+                        gs_arr[i].status = 0;  // deleting gameserver if more than 5 mins old
                     }
                 }
 
                 //
 
-                if (gs_arr[i].status >
-                    1) {  // only those who passed udp echo challenge test
-
+                if (gs_arr[i].status > 1) {  // only those who passed udp echo challenge test
                     strcat(sendbuff, ip_token);
-
                     buffind = buffind + 6;
-
                     int addrlen = strlen(gs_arr[i].addr);
-
                     strcat(sendbuff, gs_arr[i].addr);
-
                     buffind = buffind + addrlen;
-
                     strcat(sendbuff, port_token);
-
                     buffind = buffind + 8;
-
                     char port_str[6] = {0};
-
                     sprintf(port_str, "%d", gs_arr[i].port);
-
                     int portlen = strlen(port_str);
-
                     strcat(sendbuff, port_str);
-
                     buffind = buffind + portlen;
-
-                    // printf("status: %d  ip: %s  port: %d  time: %ld\n\n",
-
-                    //       gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port,
-                    //       gs_arr[i].timestamp);
+                    printf("status: %d  ip: %s  port: %d  time: %ld\n\n",
+                           gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port,
+                           gs_arr[i].timestamp);
                 }
 
             }  // for
@@ -759,8 +718,10 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
                     port_num == gs_arr[i].port) {
                     if ((strcmp(message, gs_arr[i].echokey)) == 0) {
                         gs_arr[i].status = 2;  // echo challenge test success!
+                        printf("UDP echo challenge success.\n");
                     } else {
                         gs_arr[i].status = 0;  // echo challenge test fail!
+                        printf("UDP echo challenge failed %s!\n", gs_arr[i].addr);
                     }
                 }
             }
