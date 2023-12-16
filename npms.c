@@ -82,12 +82,10 @@ static const char admin_addr[] = "127.0.0.1";
 ////////// better not touch below here //////////
 
 #define SEND_BUFFER 1024
-
 #define UDP_BUFFER 13
-
 #define MAX_HOST 1025
-
 #define MAX_PORT 32
+#define PORT 28900
 
 static const char ECHO_QUERY[] = "\\echo\\";
 
@@ -434,7 +432,7 @@ readcb(struct bufferevent *bev, void *ctx) {
 
             char sendbuff[SEND_BUFFER] = {0};
 
-            int buffind = 0;
+            ulong buffind = 0;
 
             const char ip_token[] = "\\ip\\";
 
@@ -451,30 +449,31 @@ readcb(struct bufferevent *bev, void *ctx) {
                     time_t now = time(NULL);
 
                     if (now - gs_arr[i].timestamp > 60 * 5) {
+                        printf("Deleting %s - more than 5mins old!\n", gs_arr[i].addr);
                         gs_arr[i].status = 0;  // deleting gameserver if more than 5 mins old
                     }
                 }
 
-                //
-
                 if (gs_arr[i].status > 1) {  // only those who passed udp echo challenge test
+                    printf("Will send %s to client\n", gs_arr[i].addr);
                     strcat(sendbuff, ip_token);
                     buffind = buffind + 6;
-                    int addrlen = strlen(gs_arr[i].addr);
+                    ulong addrlen = strlen(gs_arr[i].addr);
                     strcat(sendbuff, gs_arr[i].addr);
                     buffind = buffind + addrlen;
                     strcat(sendbuff, port_token);
                     buffind = buffind + 8;
                     char port_str[6] = {0};
                     sprintf(port_str, "%d", gs_arr[i].port);
-                    int portlen = strlen(port_str);
+                    ulong portlen = strlen(port_str);
                     strcat(sendbuff, port_str);
                     buffind = buffind + portlen;
-                    printf("status: %d  ip: %s  port: %d  time: %ld\n\n",
+                    printf("sending: %d  ip: %s  port: %d  time: %ld\n\n",
                            gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port,
                            gs_arr[i].timestamp);
+                } else {
+                    printf("Ignoring %s - did not pass UDP echo challenge yet!\n", gs_arr[i].addr);
                 }
-
             }  // for
 
             strcat(sendbuff, final_token);
@@ -772,12 +771,12 @@ main(int argc, char *argv[]) {
         if ((strcmp(argv[1], debug_arg)) == 0) {
             running_mode = 0;  // debug mode
 
-            printf(" program started\n");
+            printf(" program started on port %i\n", PORT);
 
         } else if ((strcmp(argv[1], silent_arg)) == 0) {
             running_mode = 1;  // silent mode
 
-            printf(" program started\n");
+            printf(" program started on port %i\n", PORT);
 
         } else if ((strcmp(argv[1], version_arg)) == 0) {
             printf(" npms version 1.0\n");
@@ -786,7 +785,7 @@ main(int argc, char *argv[]) {
 
         } else if ((strcmp(argv[1], help_arg)) == 0) {
             printf(
-                    " Listens to port 28900 for 'heartbeat' messages\n"
+                    " Listens to port %i for 'heartbeat' messages\n"
 
                     " from NetPanzer gameservers.\n"
 
@@ -813,8 +812,7 @@ main(int argc, char *argv[]) {
                     "    This! Check README for more information.\n\n"
 
                     " (if no arguments starts in [--debug] mode)\n\n"
-
-            );
+            , PORT);
 
             exit(EXIT_SUCCESS);
 
@@ -829,7 +827,7 @@ main(int argc, char *argv[]) {
     if (argc == 1) {
         running_mode = 0;  // debug mode
 
-        printf(" program started\n");
+        printf(" program started on port %i\n", PORT);
     }
 
     openlog(progname, LOG_PID, LOG_USER);
@@ -887,7 +885,7 @@ main(int argc, char *argv[]) {
 
     sin.sin_addr.s_addr = 0;
 
-    sin.sin_port = htons(28900);
+    sin.sin_port = htons(PORT);
 
     listener = socket(AF_INET, SOCK_STREAM, 0);
 
