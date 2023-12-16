@@ -694,8 +694,8 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
 
     if (n) {
         syslog(LOG_ERR, "getnameinfo failed: %s", gai_strerror(n));
-
     } else {
+        printf("Got %s from %s", message, hoststr);
         // check for shutdown command (from 127.0.0.1)
 
         if ((strcmp(message, shutdown_com)) == 0 &&
