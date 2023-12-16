@@ -451,10 +451,9 @@ readcb(struct bufferevent *bev, void *ctx) {
                     if (now - gs_arr[i].timestamp > 60 * 5) {
                         printf("Deleting %s - more than 5mins old!\n", gs_arr[i].addr);
                         gs_arr[i].status = 0;  // deleting gameserver if more than 5 mins old
+                        continue;
                     }
-                }
 
-                if (gs_arr[i].status > 1) {  // only those who passed udp echo challenge test
                     printf("Will send %s to client\n", gs_arr[i].addr);
                     strcat(sendbuff, ip_token);
                     buffind = buffind + 6;
@@ -471,8 +470,6 @@ readcb(struct bufferevent *bev, void *ctx) {
                     printf("sending: %d  ip: %s  port: %d  time: %ld\n\n",
                            gs_arr[i].status, gs_arr[i].addr, gs_arr[i].port,
                            gs_arr[i].timestamp);
-                } else {
-                    printf("Ignoring %s - did not pass UDP echo challenge yet!\n", gs_arr[i].addr);
                 }
             }  // for
 
@@ -702,30 +699,6 @@ udp_socket_main(evutil_socket_t evfd, short evwhat, void *evarg) {
             (strcmp(hoststr, admin_addr)) == 0) {
             event_base_loopbreak(evarg);
         }
-
-        int i;
-        for (i = 0; i < GS_MAX_NUM; i++) {
-            if (gs_arr[i].status == 1) {
-                unsigned int port_num = atoi(portstr);
-                time_t justnow = time(NULL);
-
-                if ((justnow - gs_arr[i].timestamp) > 2) {
-                    gs_arr[i].status = 0;  // delete!
-                }
-
-                if ((strcmp(hoststr, gs_arr[i].addr)) == 0 &&
-                    port_num == gs_arr[i].port) {
-                    if ((strcmp(message, gs_arr[i].echokey)) == 0) {
-                        gs_arr[i].status = 2;  // echo challenge test success!
-                        printf("UDP echo challenge success.\n");
-                    } else {
-                        gs_arr[i].status = 0;  // echo challenge test fail!
-                        printf("UDP echo challenge failed %s!\n", gs_arr[i].addr);
-                    }
-                }
-            }
-        }
-
     }  // else end
 
     // return - reactivating the event here
@@ -811,8 +784,7 @@ main(int argc, char *argv[]) {
 
                     "    This! Check README for more information.\n\n"
 
-                    " (if no arguments starts in [--debug] mode)\n\n"
-            , PORT);
+                    " (if no arguments starts in [--debug] mode)\n\n", PORT);
 
             exit(EXIT_SUCCESS);
 
